@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Game</title>
+  </head>
+  <body>
+    <h1>Game</h1>
+    <p id="link"></p>
+    <button id="btnCreate">New Game</button>
+    <button id="btnJoin">Join Game</button>
+    <input type="text" id="txtGameId" />
+    <div id="divPlayers"></div>
+    <div id="divBoard"></div>
+
+    <script>
+
+// HTML element 
+let btnCreate = document.getElementById('btnCreate');
+let btnJoin = document.getElementById('btnJoin');
+let txtGameId = document.getElementById('txtGameId');
+let divPlayers = document.getElementById('divPlayers');
+let divBoard = document.getElementById('divBoard');
+let link = document.getElementById('link');
+
+// Wiring events
+
+let clientId = null,
+  gameId = null, ws,playerColor=null;
+
+ws = new WebSocket("ws://localhost:8080");
+
+btnCreate.addEventListener('click', e => {
+  const payLoad = {
+    "method": "create",
+    "clientId": clientId
+  }
+  ws.send(JSON.stringify(payLoad));
+});
+
+btnJoin.addEventListener('click', e => {
+  if (gameId === null)
+    gameId = txtGameId.value;
+  const payLoad = {
+    "method": "join",
+    "clientId": clientId,
+    "gameId": gameId
+  }
+  ws.send(JSON.stringify(payLoad));
+});
+
+ws.onmessage = message => {
+  // message data
+  const response = JSON.parse(message.data);
+  if (response.method === "connect") {
+    clientId = response.clientId;
+  }
+  if (response.method === "create") {
+    // clientId = response.clientId;
+    gameId = response.game.id;
+    link.innerHTML = gameId;
+    console.log("gameId Id set successfully", response.game.id + " with " + response.game.balls + " balls");
+  }
+
+
+  if(response.method === "update"){
+    if(!response.game.state) return;
+    for(const b of Object.keys(response.game.state)){
+
+      const color = response.game.state[b];
+      const ballObject = document.getElementById("ball"+b);
+      ballObject.style.backgroundColor = color;
+    }
+  }
+
+  if (response.method === "join") {
+    const game = response.game;
+
+    while(divPlayers.firstChild)
+    divPlayers.removeChild(divPlayers.firstChild)
+
+    game.clients.forEach(c =>{
+
+      const d = document.createElement("div");
+      d.style.width = "200px";
+      d.style.background = c.color;
+      d.textContent = c.clientId;
+      divPlayers.appendChild(d);
+
+      if(c.clientId === clientId) playerColor = c.color;
+    })
+
+    while(divBoard.firstChild)
+    divBoard.removeChild(divBoard.firstChild)
+
+    for( let i=0; i<game.balls;i++){
+      const b = document.createElement('button');
+      b.id = "ball" + (i+1);
+      b.tag = i+1;
+      b.textContent = i+1;
+      b.style.width = "150px";
+      b.style.height = "150px";
+
+      b.addEventListener("click", e=>{
+        b.style.background = playerColor;
+        const payLoad = {
+          "method": "play",
+          "clientId": clientId,
+          "gameId": gameId,
+          "ballId": b.tag,
+          "color": playerColor
+        }
+        ws.send(JSON.stringify(payLoad));
+      });
+      divBoard.appendChild(b);
+    }
+
+  }
+
+}
+
+
+
+
+    </script>
+  </body>
+</html>
